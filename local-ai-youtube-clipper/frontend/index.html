@@ -1,0 +1,315 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#0b0d12">
+<title>Clipping Studio — local AI YouTube clipper</title>
+<style>
+  :root{
+    --bg:#0b0d12; --panel:#141821; --panel2:#1b2130; --line:#272f42; --text:#e8ecf5; --muted:#8a94ab;
+    --accent:#ffd60a; --accent2:#7c5cff; --ok:#2ecc71; --bad:#ff5d5d; --radius:14px;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+  .wrap{max-width:1080px;margin:0 auto;padding:20px 16px 80px}
+  header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;margin-bottom:18px}
+  h1{font-size:22px;margin:0;letter-spacing:-.02em}
+  h1 span{color:var(--accent)}
+  .badges{display:flex;gap:8px;flex-wrap:wrap}
+  .badge{font-size:12px;padding:4px 10px;border-radius:99px;background:var(--panel2);border:1px solid var(--line);color:var(--muted)}
+  .badge.ok{color:var(--ok);border-color:#1f5a3a}.badge.bad{color:var(--bad);border-color:#5a2a2a}.badge.warn{color:var(--accent);border-color:#5a4d12}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:18px;margin-bottom:16px}
+  label{display:block;font-size:12px;color:var(--muted);margin:0 0 6px;text-transform:uppercase;letter-spacing:.05em}
+  input[type=text],input[type=number],select{width:100%;background:var(--bg);border:1px solid var(--line);color:var(--text);
+    border-radius:10px;padding:12px 14px;font:inherit;outline:none}
+  input:focus,select:focus{border-color:var(--accent2)}
+  .row{display:flex;gap:10px;flex-wrap:wrap}
+  .row>.grow{flex:1 1 320px}
+  button{font:inherit;cursor:pointer;border:0;border-radius:10px;padding:12px 18px;font-weight:600}
+  .primary{background:var(--accent);color:#111}
+  .primary:hover{filter:brightness(1.07)} .primary:disabled{opacity:.5;cursor:not-allowed}
+  .ghost{background:var(--panel2);color:var(--text);border:1px solid var(--line)}
+  .ghost:hover{border-color:var(--accent2)}
+  details{margin-top:14px;border-top:1px solid var(--line);padding-top:12px}
+  summary{cursor:pointer;color:var(--muted);font-weight:600;user-select:none}
+  .grid4{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin-top:14px}
+  .hint{color:var(--muted);font-size:13px;margin:8px 0 0}
+  .err{color:var(--bad);margin-top:10px;white-space:pre-wrap}
+  /* progress */
+  .steps{display:flex;gap:6px;margin:0 0 14px;flex-wrap:wrap}
+  .step{flex:1 1 90px;text-align:center;font-size:12px;padding:7px 4px;border-radius:8px;background:var(--panel2);color:var(--muted);border:1px solid var(--line)}
+  .step.active{color:#111;background:var(--accent);border-color:var(--accent);font-weight:700}
+  .step.done{color:var(--ok);border-color:#1f5a3a}
+  .bar{height:12px;background:var(--bg);border:1px solid var(--line);border-radius:99px;overflow:hidden}
+  .bar>i{display:block;height:100%;width:0;background:linear-gradient(90deg,var(--accent2),var(--accent));transition:width .4s}
+  .pmeta{display:flex;justify-content:space-between;gap:10px;margin-top:8px;color:var(--muted);font-size:13px}
+  .pmeta b{color:var(--text)}
+  /* clips */
+  .clips{display:grid;grid-template-columns:repeat(auto-fill,minmax(250px,1fr));gap:16px}
+  .clip{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column}
+  .clip video{width:100%;aspect-ratio:9/16;background:#000;display:block;max-height:520px;object-fit:contain}
+  .clip .body{padding:12px 14px;display:flex;flex-direction:column;gap:8px;flex:1}
+  .clip h3{margin:0;font-size:15px;line-height:1.3}
+  .meta{display:flex;gap:8px;align-items:center;flex-wrap:wrap;font-size:12px;color:var(--muted)}
+  .score{font-weight:800;padding:3px 9px;border-radius:99px;background:#2a2410;color:var(--accent);border:1px solid #5a4d12}
+  .score.hi{background:#10281b;color:var(--ok);border-color:#1f5a3a}
+  .desc{font-size:13px;color:#c3cadb}
+  .tags{font-size:12px;color:var(--accent2);word-break:break-word}
+  .reason{font-size:12px;color:var(--muted);font-style:italic}
+  .actions{display:flex;gap:8px;margin-top:auto}
+  .actions a,.actions button{flex:1;text-align:center;text-decoration:none;font-size:14px;padding:10px 8px}
+  .empty{color:var(--muted);text-align:center;padding:30px 0}
+  .hist{display:flex;gap:8px;flex-wrap:wrap;margin-top:8px}
+  .hist button{font-size:12px;padding:6px 10px}
+  @media (max-width:520px){.wrap{padding:14px 12px 60px}h1{font-size:19px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>🎬 Clipping <span>Studio</span></h1>
+    <div class="badges">
+      <span class="badge" id="b-llm">LLM: checking…</span>
+      <span class="badge" id="b-ff">ffmpeg: …</span>
+      <span class="badge" id="b-ck">cookies: …</span>
+    </div>
+  </header>
+
+  <section class="card">
+    <label for="url">YouTube URL</label>
+    <div class="row">
+      <div class="grow"><input id="url" type="text" inputmode="url" autocomplete="off" placeholder="https://www.youtube.com/watch?v=…"></div>
+      <button class="primary" id="start">Start clipping</button>
+    </div>
+    <div class="err" id="form-err" role="alert"></div>
+
+    <details open>
+      <summary>Settings</summary>
+      <div class="grid4">
+        <div><label for="n">Number of clips</label><input id="n" type="number" min="1" max="15" value="5"></div>
+        <div><label for="minD">Min duration (s)</label><input id="minD" type="number" min="10" max="120" value="30"></div>
+        <div><label for="maxD">Max duration (s)</label><input id="maxD" type="number" min="15" max="180" value="90"></div>
+        <div><label for="style">Subtitle style</label>
+          <select id="style">
+            <option value="hormozi">Hormozi (yellow karaoke)</option>
+            <option value="neon">Neon green karaoke</option>
+            <option value="clean">Clean white</option>
+          </select></div>
+      </div>
+      <div class="row" style="margin-top:14px;align-items:center">
+        <input id="cookie-file" type="file" accept=".txt,text/plain" hidden>
+        <button class="ghost" id="cookie-btn" type="button">🍪 Upload cookies.txt</button>
+        <button class="ghost" id="cookie-del" type="button" hidden>Remove cookies</button>
+        <span class="hint" id="cookie-msg" style="margin:0"></span>
+      </div>
+      <p class="hint">YouTube often blocks cloud IPs (Kaggle). If a download fails with a bot-check error, export cookies.txt from a logged-in browser (Netscape format) and upload it here.</p>
+    </details>
+  </section>
+
+  <section class="card" id="progress-card" hidden>
+    <div class="steps" id="steps">
+      <div class="step" data-s="downloading">⬇ Downloading</div>
+      <div class="step" data-s="transcribing">📝 Transcribing</div>
+      <div class="step" data-s="analyzing">🧠 AI Analyzing</div>
+      <div class="step" data-s="clipping">✂ Clipping</div>
+    </div>
+    <div class="bar"><i id="bar"></i></div>
+    <div class="pmeta"><span id="pmsg">Starting…</span><b id="ppct">0%</b></div>
+    <div class="pmeta"><span id="ptitle"></span><span id="pinfo"></span></div>
+    <div class="err" id="job-err"></div>
+  </section>
+
+  <section id="results" hidden>
+    <div class="row" style="justify-content:space-between;align-items:center;margin:6px 0 12px">
+      <h2 style="margin:0;font-size:18px">Your clips</h2>
+      <div class="row" id="tx-links"></div>
+    </div>
+    <div class="clips" id="clips"></div>
+  </section>
+
+  <section class="card" id="history-card" hidden>
+    <label>Recent jobs</label>
+    <div class="hist" id="hist"></div>
+  </section>
+</div>
+
+<script>
+(() => {
+  const $ = (id) => document.getElementById(id);
+  const STAGES = ["downloading", "transcribing", "analyzing", "clipping"];
+  let pollTimer = null, currentJob = null, renderedClips = 0;
+
+  async function api(path, opts) {
+    const res = await fetch(path, opts);
+    let data = null;
+    try { data = await res.json(); } catch (_) {}
+    if (!res.ok) {
+      let msg = "Request failed (" + res.status + ")";
+      if (data && data.detail) {
+        msg = Array.isArray(data.detail)
+          ? data.detail.map(d => (d.msg || "").replace(/^Value error, /, "")).join("\n")
+          : data.detail;
+      }
+      throw new Error(msg);
+    }
+    return data;
+  }
+
+  const esc = (s) => String(s ?? "").replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const fmtDur = (s) => { s = Math.round(s); return Math.floor(s / 60) + ":" + String(s % 60).padStart(2, "0"); };
+
+  // ---------------- health ----------------
+  async function refreshHealth() {
+    try {
+      const h = await api("/api/health");
+      const llm = $("b-llm");
+      if (h.llm.available) { llm.textContent = "LLM: " + h.llm.model; llm.className = "badge ok"; }
+      else { llm.textContent = "LLM: offline → heuristic mode"; llm.className = "badge warn"; }
+      $("b-ff").textContent = h.ffmpeg ? "ffmpeg: ready" : "ffmpeg: MISSING";
+      $("b-ff").className = "badge " + (h.ffmpeg ? "ok" : "bad");
+      setCookies(h.cookies);
+    } catch (e) {
+      $("b-llm").textContent = "server unreachable"; $("b-llm").className = "badge bad";
+    }
+  }
+  function setCookies(present) {
+    $("b-ck").textContent = present ? "cookies: loaded" : "cookies: none";
+    $("b-ck").className = "badge " + (present ? "ok" : "");
+    $("cookie-del").hidden = !present;
+  }
+
+  // ---------------- cookies ----------------
+  $("cookie-btn").onclick = () => $("cookie-file").click();
+  $("cookie-file").onchange = async (ev) => {
+    const f = ev.target.files[0];
+    if (!f) return;
+    const fd = new FormData(); fd.append("file", f);
+    $("cookie-msg").textContent = "Uploading…";
+    try {
+      const r = await api("/api/upload-cookies", { method: "POST", body: fd });
+      $("cookie-msg").textContent = "✓ Saved (" + r.entries + " cookies)";
+      setCookies(true);
+    } catch (e) { $("cookie-msg").textContent = "✗ " + e.message; }
+    ev.target.value = "";
+  };
+  $("cookie-del").onclick = async () => {
+    try { await api("/api/cookies", { method: "DELETE" }); $("cookie-msg").textContent = "Cookies removed"; setCookies(false); }
+    catch (e) { $("cookie-msg").textContent = "✗ " + e.message; }
+  };
+
+  // ---------------- start job ----------------
+  $("start").onclick = async () => {
+    $("form-err").textContent = "";
+    const url = $("url").value.trim();
+    if (!/(youtube\.com|youtu\.be)/i.test(url)) { $("form-err").textContent = "Only YouTube links are supported."; return; }
+    const body = {
+      youtube_url: url,
+      num_clips: +$("n").value || 5,
+      min_duration: +$("minD").value || 30,
+      max_duration: +$("maxD").value || 90,
+      subtitle_style: $("style").value,
+    };
+    $("start").disabled = true;
+    try {
+      const job = await api("/api/jobs", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) });
+      watch(job.id);
+    } catch (e) { $("form-err").textContent = e.message; }
+    finally { $("start").disabled = false; }
+  };
+  $("url").addEventListener("keydown", (e) => { if (e.key === "Enter") $("start").click(); });
+
+  // ---------------- watch / poll ----------------
+  function watch(id) {
+    currentJob = id; renderedClips = 0;
+    localStorage.setItem("lastJob", id);
+    $("clips").innerHTML = ""; $("results").hidden = true;
+    $("progress-card").hidden = false; $("job-err").textContent = "";
+    clearInterval(pollTimer);
+    poll();
+    pollTimer = setInterval(poll, 1500);
+  }
+
+  async function poll() {
+    if (!currentJob) return;
+    try {
+      const j = await api("/api/jobs/" + currentJob);
+      renderProgress(j);
+      if (j.clips_count > renderedClips || j.status === "completed") await loadClips(j);
+      if (j.status === "completed" || j.status === "failed") { clearInterval(pollTimer); pollTimer = null; loadHistory(); }
+    } catch (e) {
+      $("pmsg").textContent = "Connection problem, retrying… (" + e.message + ")";
+    }
+  }
+
+  function renderProgress(j) {
+    const pct = Math.max(0, Math.min(100, j.progress || 0));
+    $("bar").style.width = pct + "%";
+    $("ppct").textContent = pct.toFixed(0) + "%";
+    $("pmsg").textContent = j.status === "failed" ? "Failed" : (j.message || j.stage);
+    $("ptitle").textContent = j.video_title || "";
+    const bits = [];
+    if (j.transcript_source) bits.push("transcript: " + j.transcript_source);
+    if (j.analysis_method) bits.push("AI: " + j.analysis_method);
+    $("pinfo").textContent = bits.join(" · ");
+    const idx = STAGES.indexOf(j.stage);
+    document.querySelectorAll(".step").forEach((el) => {
+      const i = STAGES.indexOf(el.dataset.s);
+      el.classList.toggle("active", j.status === "running" && i === idx);
+      el.classList.toggle("done", j.status === "completed" || (idx > i && idx !== -1));
+    });
+    $("job-err").textContent = j.status === "failed" ? (j.error || "Unknown error") : "";
+  }
+
+  async function loadClips(j) {
+    const clips = await api("/api/jobs/" + j.id + "/clips");
+    if (!clips.length) return;
+    renderedClips = clips.length;
+    $("results").hidden = false;
+    $("clips").innerHTML = clips.map(cardHtml).join("");
+    $("tx-links").innerHTML = ["txt", "srt", "vtt"].map(f =>
+      '<a class="badge" style="text-decoration:none" href="/api/jobs/' + j.id + '/transcript/' + f + '" download>transcript.' + f + '</a>').join("");
+    document.querySelectorAll("[data-copy]").forEach((b) => b.onclick = async () => {
+      try { await navigator.clipboard.writeText(b.dataset.copy); b.textContent = "Copied ✓"; }
+      catch (_) { b.textContent = "Copy failed"; }
+      setTimeout(() => (b.textContent = "Copy caption"), 1500);
+    });
+  }
+
+  function cardHtml(c) {
+    const caption = c.title + "\n\n" + c.description + "\n\n" + (c.hashtags || []).join(" ");
+    return '<article class="clip">' +
+      '<video controls playsinline preload="metadata" poster="' + esc(c.thumbnail_url) + '" src="' + esc(c.preview_url) + '"></video>' +
+      '<div class="body">' +
+        '<h3>' + esc(c.title) + '</h3>' +
+        '<div class="meta"><span class="score ' + (c.score >= 8 ? "hi" : "") + '">🔥 ' + c.score.toFixed(1) + '/10</span>' +
+          '<span>' + fmtDur(c.duration) + '</span><span>' + (c.source === "llm" ? "AI pick" : "heuristic") + '</span></div>' +
+        (c.description ? '<div class="desc">' + esc(c.description) + '</div>' : "") +
+        '<div class="tags">' + esc((c.hashtags || []).join(" ")) + '</div>' +
+        (c.reason ? '<div class="reason">' + esc(c.reason) + '</div>' : "") +
+        '<div class="actions"><a class="primary" href="' + esc(c.download_url) + '" download>⬇ Download</a>' +
+        '<button class="ghost" data-copy="' + esc(caption) + '">Copy caption</button></div>' +
+      '</div></article>';
+  }
+
+  // ---------------- history ----------------
+  async function loadHistory() {
+    try {
+      const jobs = await api("/api/jobs");
+      $("history-card").hidden = !jobs.length;
+      $("hist").innerHTML = jobs.slice(0, 12).map(j =>
+        '<button class="ghost" data-job="' + j.id + '">' + esc((j.video_title || j.youtube_url).slice(0, 34)) +
+        ' · ' + j.status + '</button>').join("");
+      document.querySelectorAll("[data-job]").forEach(b => b.onclick = () => watch(b.dataset.job));
+    } catch (_) {}
+  }
+
+  // ---------------- init ----------------
+  refreshHealth(); setInterval(refreshHealth, 20000);
+  loadHistory();
+  const last = localStorage.getItem("lastJob");
+  if (last) api("/api/jobs/" + last).then(() => watch(last)).catch(() => localStorage.removeItem("lastJob"));
+})();
+</script>
+</body>
+</html>

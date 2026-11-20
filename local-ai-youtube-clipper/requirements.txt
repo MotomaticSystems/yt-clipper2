@@ -1,0 +1,14 @@
+# Studio venv (FastAPI backend + faster-whisper). Python 3.12.
+# FFmpeg is a SYSTEM dependency (apt install ffmpeg / brew install ffmpeg).
+fastapi==0.115.6
+uvicorn[standard]==0.32.1
+pydantic==2.10.3
+python-multipart==0.0.20
+requests==2.32.3
+yt-dlp[default]==2025.10.22
+faster-whisper==1.1.0
+ctranslate2==4.5.0
+pyngrok==7.2.3
+# CUDA 12 runtime libs needed by ctranslate2 (faster-whisper) on GPU machines such as Kaggle
+nvidia-cublas-cu12>=12.1; sys_platform == "linux"
+nvidia-cudnn-cu12>=9,<10; sys_platform == "linux"

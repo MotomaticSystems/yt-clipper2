@@ -1,0 +1,4 @@
+# vLLM venv (separate from the studio venv so torch/CUDA versions never clash). Python 3.12.
+# vLLM 0.10.2 pins torch 2.8.0 (CUDA 12.8 wheels) - works on a Kaggle T4 with --dtype half.
+vllm==0.10.2
+torch==2.8.0
